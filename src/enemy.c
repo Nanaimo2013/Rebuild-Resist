@@ -2,10 +2,11 @@
 #include "game.h"     // Include game.h first to get full GameState definition
 #include "enemy.h"
 #include "math_utils.h"  // Add this include
+#include "data/game_settings.h"
+#include "data/enemy_settings.h"
+#include "data/wave_settings.h"
 
-#define MAX_ENEMIES 100
 #define ENEMY_SIZE 24
-#define ENEMY_SPAWN_DISTANCE 400
 #define PI 3.14159265358979323846f
 
 static struct {
@@ -18,6 +19,8 @@ static struct {
     .spawn_timer = 0,
     .wave_size = 10
 };
+
+static WaveData current_wave = {0};
 
 void init_enemy_manager(void) {
     enemy_manager.count = 0;
@@ -45,16 +48,31 @@ bool spawn_enemy(float x, float y) {
     return true;
 }
 
-void spawn_wave(int wave_number) {
-    int enemies_to_spawn = enemy_manager.wave_size + (wave_number * 2);
-    
-    for (int i = 0; i < enemies_to_spawn; i++) {
-        // Spawn enemies around the map edges
-        float angle = (float)(SDL_GetTicks() % 360) * (PI / 180.0f);
-        float x = WINDOW_WIDTH / 2 + my_cosf(angle) * ENEMY_SPAWN_DISTANCE;
-        float y = WINDOW_HEIGHT / 2 + my_sinf(angle) * ENEMY_SPAWN_DISTANCE;
+void spawn_wave(int wave_number, const WaveData* wave_data) {
+    for (int i = 0; i < wave_data->spawn_count; i++) {
+        WaveSpawn spawn = wave_data->spawns[i];
         
-        spawn_enemy(x, y);
+        // Calculate enemy stats based on level
+        EnemyTypeData base_data = ENEMY_DATA[spawn.type];
+        float level_multiplier = 1.0f + (spawn.level - 1) * 0.2f;
+        
+        for (int j = 0; j < spawn.count; j++) {
+            // Calculate spawn position on grid using math_utils
+            float angle = (float)(j * (2 * PI / spawn.count));
+            int grid_x = (GRID_COLS / 2) + (int)(my_cosf(angle) * (GRID_COLS / 3));
+            int grid_y = (GRID_ROWS / 2) + (int)(my_sinf(angle) * (GRID_ROWS / 3));
+            
+            Enemy* enemy = &enemy_manager.enemies[enemy_manager.count++];
+            enemy->x = grid_x * GRID_SIZE;
+            enemy->y = grid_y * GRID_SIZE;
+            enemy->health = (int)(base_data.base_health * level_multiplier);
+            enemy->damage = (int)(base_data.base_damage * level_multiplier);
+            enemy->speed = base_data.base_speed * level_multiplier;
+            enemy->type = spawn.type;
+            enemy->level = spawn.level;
+            enemy->state = ENEMY_WALKING;
+            enemy->is_active = true;
+        }
     }
 }
 
@@ -66,7 +84,7 @@ static void update_enemy(Enemy* enemy, GameState* state) {
             // Move towards center/player
             float dx = (WINDOW_WIDTH / 2) - enemy->x;
             float dy = (WINDOW_HEIGHT / 2) - enemy->y;
-            float distance = SDL_sqrtf(dx * dx + dy * dy);
+            float distance = my_sqrtf(dx * dx + dy * dy);
             
             if (distance > 0) {
                 enemy->velocity_x = (dx / distance) * enemy->speed;
@@ -107,7 +125,10 @@ void update_enemies(GameState* state) {
     if (state->time_of_day >= 18.0f || state->time_of_day <= 6.0f) {
         enemy_manager.spawn_timer += state->delta_time;
         if (enemy_manager.spawn_timer >= 5.0f) {
-            spawn_wave(state->wave_number);
+            const WaveData* wave = get_wave_data(state->wave_number - 1);
+            if (wave != NULL) {
+                spawn_wave(state->wave_number, wave);
+            }
             enemy_manager.spawn_timer = 0;
         }
     }

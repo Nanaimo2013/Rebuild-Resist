@@ -7,52 +7,75 @@
 #include "survivor.h"  // Add this for survivor functions
 #include <stdio.h>
 #include <SDL3/SDL.h>
+#include "camera.h"
+#include "building_manager.h"
+#include "enemy_manager.h"
+#include "survivor_manager.h"
+#include "data/game_settings.h"
 
 bool init_game(GameState* state) {
+    if (!state) return false;
+
+    // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("SDL initialization failed: %s\n", SDL_GetError());
+        printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return false;
     }
 
-    // Create window with proper flags
-    state->window = SDL_CreateWindow(
-        "Rebuild & Resist",
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
-    );
-    
+    // Create window
+    state->window = SDL_CreateWindow("Rebuild & Resist",
+        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
+        SDL_WINDOW_RESIZABLE);
+
     if (!state->window) {
-        printf("Window creation failed: %s\n", SDL_GetError());
+        printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
         return false;
     }
 
-    // Create renderer with proper flags for SDL3
-    state->renderer = SDL_CreateRenderer(
-        state->window,
-        NULL  // Use first available driver
-    );
-    
+    // Create renderer
+    state->renderer = SDL_CreateRenderer(state->window, NULL, 0);
     if (!state->renderer) {
-        printf("Renderer creation failed: %s\n", SDL_GetError());
+        printf("Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
         SDL_DestroyWindow(state->window);
         return false;
     }
 
-    // Set render scale quality
+    SDL_SetRenderDrawBlendMode(state->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderScale(state->renderer, 1.0f, 1.0f);
+
+    // Allocate memory for managers
+    state->building_manager = malloc(sizeof(BuildingManager));
+    state->enemy_manager = malloc(sizeof(EnemyManager));
+    state->survivor_manager = malloc(sizeof(SurvivorManager));
+    state->player = malloc(sizeof(Player));
+    state->camera = malloc(sizeof(Camera));
+
+    if (!state->building_manager || !state->enemy_manager || !state->survivor_manager || 
+        !state->player || !state->camera) {
+        printf("Failed to allocate memory for managers\n");
+        return false;
+    }
 
     // Initialize subsystems
     init_resource_manager();
-    init_building_manager(&state->building_manager);
-    init_player(&state->player);
-    init_enemy_manager();
-    init_renderer();  // Make sure this is called after renderer creation
+    init_building_manager(state->building_manager);
+    init_player(state->player);
+    init_enemy_manager(state->enemy_manager);
+    init_survivor_manager(state->survivor_manager);
+    init_camera(state->camera);
 
+    // Initialize game state
     state->is_running = true;
-    state->wave_number = 1;
+    state->is_paused = false;
+    state->is_building_mode = false;
+    state->is_wave_in_progress = false;
+    state->elapsed_time = 0.0f;
+    state->delta_time = 1.0f / 60.0f;  // Target 60 FPS
     state->time_of_day = 0.0f;
-    state->delta_time = 0.016f; // ~60 FPS
+    state->wave_number = 1;
+    state->selected_building_type = -1;
+    state->mode = GAME_STATE_BUILDING;
 
     return true;
 }
@@ -65,35 +88,13 @@ void handle_input(GameState* state) {
                 state->is_running = false;
                 break;
                 
-            case SDL_EVENT_KEY_DOWN:
-                switch (event.key.scancode) {
-                    case SDL_SCANCODE_ESCAPE:
-                        state->is_running = false;
-                        break;
-                        
-                    case SDL_SCANCODE_F:  // Toggle fullscreen
-                        {
-                            uint32_t flags = SDL_GetWindowFlags(state->window);
-                            SDL_SetWindowFullscreen(state->window, 
-                                (flags & SDL_WINDOW_FULLSCREEN) ? 0 : SDL_WINDOW_FULLSCREEN);
-                        }
-                        break;
-                }
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                handle_mouse_click(state, event.button.x, event.button.y);
                 break;
                 
-            case SDL_EVENT_MOUSE_BUTTON_DOWN: {
-                // Handle mouse clicks for building placement, etc.
-                if (state->player.is_building_mode) {
-                    int mouse_x, mouse_y;
-                    uint32_t buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
-                    (void)buttons; // Suppress unused variable warning
-                    // Snap to grid
-                    int grid_x = (mouse_x / TILE_SIZE) * TILE_SIZE;
-                    int grid_y = (mouse_y / TILE_SIZE) * TILE_SIZE;
-                    add_building(&state->building_manager, grid_x, grid_y, WALL);
-                }
+            case SDL_EVENT_KEY_DOWN:
+                handle_keyboard(state, event.key.scancode);
                 break;
-            }
                 
             case SDL_EVENT_MOUSE_MOTION:
                 // Handle mouse movement for UI hover effects, etc.
@@ -109,6 +110,31 @@ void handle_input(GameState* state) {
     }
 }
 
+void handle_mouse_click(GameState* state, int x, int y) {
+    // Check if click is in building menu
+    if (x > WINDOW_WIDTH - 200 && y > 40) {
+        handle_menu_click(state, x, y);
+        return;
+    }
+    
+    // Check if click is on start button
+    if (state->mode == GAME_STATE_BUILDING &&
+        x > WINDOW_WIDTH - 190 && 
+        x < WINDOW_WIDTH - 10 &&
+        y > WINDOW_HEIGHT - 70 &&
+        y < WINDOW_HEIGHT - 10) {
+        start_wave(state);
+        return;
+    }
+    
+    // Handle building placement
+    if (state->mode == GAME_STATE_BUILDING && state->selected_building_type != -1) {
+        int grid_x = (x / GRID_SIZE) * GRID_SIZE;
+        int grid_y = (y / GRID_SIZE) * GRID_SIZE;
+        add_building(&state->building_manager, grid_x, grid_y, state->selected_building_type);
+    }
+}
+
 void update_game(GameState* state) {
     // Update time of day (24-hour cycle)
     state->time_of_day += state->delta_time * 0.1f;  // Adjust speed as needed
@@ -118,9 +144,9 @@ void update_game(GameState* state) {
     }
 
     // Update game systems
-    update_player(&state->player);  // This now handles all player input
-    update_buildings(&state->building_manager);
-    update_enemies(state);
+    update_player(state->player);  // This now handles all player input
+    update_buildings(state->building_manager);
+    update_enemies(state, state->enemy_manager);
     
     // Resource generation (example)
     if (state->time_of_day >= 6.0f && state->time_of_day <= 18.0f) {
@@ -129,6 +155,8 @@ void update_game(GameState* state) {
             add_resources(1, 0, 1, 0);  // Add some wood and food
         }
     }
+
+    state->elapsed_time += state->delta_time;  // Increment elapsed time
 }
 
 void render_game(GameState* state) {
@@ -140,10 +168,10 @@ void render_game(GameState* state) {
     render_world_grid(state->renderer);
     
     // Render game objects in proper order
-    render_buildings(state->renderer, &state->building_manager);
-    render_enemies(state->renderer);
-    render_survivors(state->renderer);
-    render_player(state->renderer, &state->player);
+    render_buildings(state->renderer, state->building_manager);
+    render_enemies(state->renderer, state->enemy_manager);
+    render_survivors(state->renderer, state->survivor_manager);
+    render_player(state->renderer, state->player);
     
     // Render UI on top
     render_ui(state->renderer, state);
@@ -153,6 +181,21 @@ void render_game(GameState* state) {
 }
 
 void cleanup_game(GameState* state) {
+    if (!state) return;
+
+    // Cleanup subsystems
+    cleanup_building_manager(state->building_manager);
+    cleanup_enemy_manager(state->enemy_manager);
+    cleanup_survivor_manager(state->survivor_manager);
+
+    // Free allocated memory
+    free(state->building_manager);
+    free(state->enemy_manager);
+    free(state->survivor_manager);
+    free(state->player);
+    free(state->camera);
+
+    // Cleanup SDL
     SDL_DestroyRenderer(state->renderer);
     SDL_DestroyWindow(state->window);
     SDL_Quit();

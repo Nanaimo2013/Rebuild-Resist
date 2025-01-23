@@ -7,9 +7,15 @@
 #include "renderer.h"
 #include "survivor.h"
 
+#ifdef _WIN32
+#include <windows.h>
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+#else
 int main(int argc, char* argv[]) {
-    (void)argc;
-    (void)argv;
+#endif
+    // Remove these lines if not needed
+    // (void)argc;
+    // (void)argv;
 
     GameState game_state = {0};  // Initialize all to zero
     game_state.is_running = true;
@@ -29,6 +35,7 @@ int main(int argc, char* argv[]) {
     // Add initial survivors
     for (int i = 0; i < 5; i++) {
         add_survivor(
+            game_state.survivor_manager,
             WINDOW_WIDTH / 2 + (rand() % 100 - 50),
             WINDOW_HEIGHT / 2 + (rand() % 100 - 50)
         );

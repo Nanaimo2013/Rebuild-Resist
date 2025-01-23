@@ -43,25 +43,26 @@ static bool key_held(SDL_Scancode key) {
     return input_state.keys[key];
 }
 
-void init_player(Player* player) {
+void init_player(struct Player* player) {
     if (!player) return;
     
-    player->x = (float)WINDOW_WIDTH / 2;
-    player->y = (float)WINDOW_HEIGHT / 2;
-    player->health = 100;
-    player->max_health = 100;
-    player->resources = 0;
+    player->x = (float)WINDOW_WIDTH / 2.0f;
+    player->y = (float)WINDOW_HEIGHT / 2.0f;
+    player->health = 100.0f;
+    player->max_health = 100.0f;
+    player->resources = 0.0f;
     player->movement_speed = 5.0f;
     player->is_building_mode = false;
     player->is_moving = false;
     player->is_attacking = false;
     player->is_gathering = false;
+    player->money = 100;  // Start with some initial money
     
     // Initialize input state
     memset(&input_state, 0, sizeof(input_state));
 }
 
-void update_player(Player* player) {
+void update_player(struct Player* player) {
     if (!player) return;
     
     update_input_state();
@@ -116,33 +117,7 @@ void update_player(Player* player) {
     // Keep player in bounds
     player->x = SDL_clamp(player->x, 0.0f, (float)WINDOW_WIDTH);
     player->y = SDL_clamp(player->y, 0.0f, (float)WINDOW_HEIGHT);
-}
-
-void render_player(SDL_Renderer* renderer, const Player* player) {
-    if (!player || !renderer) return;
     
-    SDL_FRect player_rect = {
-        .x = player->x - TILE_SIZE/2,
-        .y = player->y - TILE_SIZE/2,
-        .w = TILE_SIZE,
-        .h = TILE_SIZE
-    };
-    
-    // Change color based on player state
-    if (player->is_building_mode) {
-        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);  // Green for building
-    } else if (player->is_attacking) {
-        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);  // Red for attacking
-    } else if (player->is_gathering) {
-        SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);  // Yellow for gathering
-    } else {
-        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);  // Default green
-    }
-    
-    SDL_RenderFillRect(renderer, &player_rect);
-    
-    // Draw direction indicator if moving
-    if (player->is_moving) {
-        // TODO: Add direction indicator
-    }
+    // Example: earn money over time
+    player->money += 1;  // Increment money (for demonstration)
 }

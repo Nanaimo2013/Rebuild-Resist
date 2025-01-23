@@ -1,0 +1,34 @@
+#include <windows.h>
+
+// Icon with multiple sizes
+IDI_ICON1 ICON "assets/icon/icon256x256.ico"  // Use the largest as default
+
+// Version Info
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName",      "NansStudios"
+            VALUE "FileDescription",  "Rebuild & Resist - Base Building Survival Game"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "rebuild_resist"
+            VALUE "LegalCopyright",   "© 2024 NansStudios"
+            VALUE "OriginalFilename", "rebuild_resist.exe"
+            VALUE "ProductName",      "Rebuild & Resist"
+            VALUE "ProductVersion",   "1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
+END 

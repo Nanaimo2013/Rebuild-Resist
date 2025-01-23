@@ -16,8 +16,8 @@ typedef struct {
 } ResourceManager;
 
 void init_resource_manager(void);
-bool can_afford(int wood, int stone, int food, int metal);
-bool spend_resources(int wood, int stone, int food, int metal);
-void add_resources(int wood, int stone, int food, int metal);
+bool can_afford(int wood, int stone, int metal, int food);
+bool spend_resources(int wood, int stone, int metal, int food);
+void add_resources(int wood, int stone, int metal, int food);
 
 #endif 

@@ -71,24 +71,41 @@ copy "lib\SDL3\bin\SDL3.dll" "tcc\" > nul
 REM Save current error level
 set "_prev_errorlevel=0"
 
+REM Compile resources
+windres resources.rc -O coff -o resources.res
+
+REM Add resources.res to your compilation command
 tcc -v -o "bin/rebuild_and_resist.exe" ^
     "-I./include" ^
+    "-I./include/data" ^
     "-I./lib/SDL3/include" ^
+    "-I./src" ^
     "-DSDL_MAIN_HANDLED" ^
     "-DUSE_MATH_DEFINES" ^
     "src/main.c" ^
     "src/game.c" ^
     "src/player.c" ^
     "src/building.c" ^
+    "src/building_data.c" ^
     "src/enemy.c" ^
+    "src/enemy_data.c" ^
+    "src/wave_data.c" ^
     "src/renderer.c" ^
     "src/resource_manager.c" ^
     "src/survivor.c" ^
+    "src/client_settings.c" ^
+    "src/input.c" ^
+    "src/wave.c" ^
+    "src/text.c" ^
+    "src/building_manager.c" ^
+    "src/enemy_manager.c" ^
+    "src/survivor_manager.c" ^
     "lib/SDL3/bin/SDL3.dll" ^
     "tcc/lib/msvcrt.def" ^
     "tcc/lib/kernel32.def" ^
     "tcc/lib/gdi32.def" ^
-    "tcc/lib/user32.def"
+    "tcc/lib/user32.def" ^
+    resources.res
 
 set "_compile_error=%errorlevel%"
 
